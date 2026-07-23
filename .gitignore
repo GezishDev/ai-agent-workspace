@@ -1,0 +1,17 @@
+.env
+.git-meta-test/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.db
+*.db-journal
+*.tsbuildinfo
+AI-Agent-Workspace/
+NeuralDesk/
