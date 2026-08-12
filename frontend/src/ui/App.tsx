@@ -4,7 +4,7 @@ import {
   HelpCircle, LogOut, Send, Plus, Zap, Search, Code2, Sun, Moon,
   User, Copy, Check, Trash2, ChevronRight, Sparkles, Clock, Activity,
   ArrowUpRight, Play, FileText, Database, ShieldCheck, Key, Terminal,
-  ExternalLink, FileCode, CheckCircle2, Sliders, Layers
+  ExternalLink, FileCode, CheckCircle2, Sliders, Layers, Eye, EyeOff
 } from "lucide-react";
 import { AgentRun, AuthResponse, apiClient } from "../api/client";
 
@@ -72,11 +72,19 @@ function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggl
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
-    e.preventDefault(); setBusy(true); setError(null);
+    e.preventDefault();
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setBusy(true); setError(null);
     try {
       const r = mode === "login" ? await apiClient.login(email, password) : await apiClient.register(email, password);
       onAuthenticated(r);
@@ -96,18 +104,67 @@ function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggl
           <div className="hero-pill"><Sparkles size={12}/><span>AI Agent Workspace</span></div>
           <h1>Think it. Type it.<br/><span className="g-text">Done.</span></h1>
           <p>Run AI agents, pick models, and track every run in one stunning workspace.</p>
+
+          <div className="auth-features">
+            <div className="af-item"><ShieldCheck size={16}/> <span>Enterprise JWT Auth &amp; Password Hashing</span></div>
+            <div className="af-item"><Cpu size={16}/> <span>LLaMA 3.3 70B &amp; Gemma Multi-Model Support</span></div>
+            <div className="af-item"><Zap size={16}/> <span>Non-blocking Async LangGraph Workflow Engine</span></div>
+          </div>
         </div>
         <div className="auth-card">
           <div className="auth-tabs">
             {(["login","register"] as AuthMode[]).map(m=>(
-              <button key={m} className={`a-tab${mode===m?" a-tab-on":""}`} onClick={()=>{setMode(m);setError(null);}}>
+              <button key={m} className={`a-tab${mode===m?" a-tab-on":""}`} onClick={()=>{setMode(m);setError(null);setConfirmPassword("");}}>
                 {m==="login"?"Sign in":"Register"}
               </button>
             ))}
           </div>
           <form onSubmit={submit}>
-            <div className="nd-field"><label>Email</label><input className="nd-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email"/></div>
-            <div className="nd-field"><label>Password</label><input className="nd-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 12 characters":"••••••••"} required minLength={mode==="register"?12:1} autoComplete={mode==="login"?"current-password":"new-password"}/></div>
+            <div className="nd-field">
+              <label>Email</label>
+              <input className="nd-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email"/>
+            </div>
+
+            <div className="nd-field">
+              <label>Password</label>
+              <div className="password-input-wrap">
+                <input
+                  className="nd-input"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={e=>setPassword(e.target.value)}
+                  placeholder={mode==="register"?"Min 12 characters":"••••••••"}
+                  required
+                  minLength={mode==="register"?12:1}
+                  autoComplete={mode==="login"?"current-password":"new-password"}
+                />
+                <button type="button" className="password-toggle-btn" onClick={() => setShowPassword(s => !s)} title={showPassword ? "Hide password" : "Show password"}>
+                  {showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
+                </button>
+              </div>
+            </div>
+
+            {mode === "register" && (
+              <div className="nd-field">
+                <label>Confirm Password</label>
+                <div className="password-input-wrap">
+                  <input
+                    className="nd-input"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={e=>setConfirmPassword(e.target.value)}
+                    placeholder="Retype password"
+                    required
+                    minLength={12}
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="password-toggle-btn" onClick={() => setShowConfirmPassword(s => !s)} title={showConfirmPassword ? "Hide password" : "Show password"}>
+                    {showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {error && <p className="auth-err">{error}</p>}
             <button className="auth-submit" type="submit" disabled={busy}>
               {busy?<span className="spin"/>:null}{busy?"Please wait…":mode==="login"?"Sign in →":"Create account →"}
@@ -142,7 +199,7 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
   const username = auth.user.email.split("@")[0];
   const displayName = username.charAt(0).toUpperCase() + username.slice(1);
 
-  function openChat(run?: AgentRun, promptText?: string) {
+  function openChat(run?: AgentRun, _promptText?: string) {
     setActiveRun(run ?? null);
     setPage("chat");
   }
@@ -628,7 +685,7 @@ function AiMsg({ run }: { run: AgentRun }) {
 /* ══════════════════════════════════════════════════
    AGENTS PAGE
 ══════════════════════════════════════════════════ */
-function AgentsPage({ onLaunchAgent }: { onLaunchAgent: (promptText: string, modelId?: string) => void }) {
+function AgentsPage({ onLaunchAgent }: { onLaunchAgent: (promptText: string, agentModel?: string) => void }) {
   const agentTemplates = [
     {
       title: "Code Architect Agent",
@@ -726,7 +783,7 @@ function FilesPage({ runs }: { runs: AgentRun[] }) {
         <div className="rw-empty"><FileCode size={32}/><p>No workspace files matching filter</p></div>
       ) : (
         <div className="files-list">
-          {filteredRuns.map((run, i) => (
+          {filteredRuns.map((run) => (
             <div key={run.id} className="file-row">
               <div className="file-left">
                 <div className="file-icon"><FileText size={18}/></div>
