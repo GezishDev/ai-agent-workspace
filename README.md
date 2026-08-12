@@ -1,161 +1,247 @@
 # AI Agent Workspace
 
-Production foundation for an authenticated AI Agent Workspace built with FastAPI, React, Tailwind CSS, PostgreSQL, LangGraph, LangChain-ready boundaries, JWT authentication, Docker, Clean Architecture, Repository Pattern, type hints, Pydantic schemas, tests, and API documentation.
+A production-style AI agent platform built to demonstrate backend engineering, clean architecture, JWT authentication, LangGraph agent workflows, and modern React. Suitable for professional portfolios and AI engineering job applications.
 
-## Why This Feature Exists
+---
 
-This first feature creates the application foundation. We need a secure, modular baseline before adding high-value agent workflows, because authentication, persistence, API shape, UI structure, and deployment boundaries affect every later feature.
+## Features
+
+| Category | Feature |
+|---|---|
+| **Security** | JWT authentication (HS256, configurable expiry) |
+| **Security** | bcrypt password hashing via passlib |
+| **Security** | User isolation — users can only access their own runs |
+| **Security** | `hashed_password` never returned in API responses |
+| **Security** | Uniform auth error messages (no user enumeration) |
+| **API** | RESTful versioned routes under `/api/v1` |
+| **API** | Pydantic v2 request validation with clear 422 errors |
+| **API** | Pagination (`limit` / `offset`) on run history |
+| **AI** | LangGraph agent workflow (extensible node graph) |
+| **AI** | Async Groq LLM integration (non-blocking event loop) |
+| **AI** | Model, temperature, max_tokens per request |
+| **Data** | PostgreSQL (production) + SQLite (local dev) |
+| **Data** | SQLAlchemy async ORM with repository pattern |
+| **Data** | Alembic migrations — reproducible schema changes |
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Frontend** | Dark/light mode, dashboard, chat interface |
+| **Frontend** | Run history, model selection, delete |
+| **Frontend** | API client boundary — no fetch logic inside components |
+| **Infra** | Docker Compose (PostgreSQL + backend + frontend) |
+| **Infra** | Multi-stage frontend Docker build |
+| **Tests** | 28 backend tests (unit + integration) via pytest |
+| **Tests** | 5 frontend tests via Vitest + Testing Library |
+
+---
 
 ## Architecture
 
-The backend follows Clean Architecture:
+```
+Browser (React + TypeScript)
+       │  HTTPS / Bearer token
+       ▼
+FastAPI  /api/v1
+       │
+       ├─ presentation   ← routes, Pydantic schemas, dependency injection
+       │
+       ├─ application    ← AuthService, AgentService (use cases)
+       │
+       ├─ domain         ← entities, repository contracts, domain exceptions
+       │
+       ├─ infrastructure ← SQLAlchemy models, async repositories
+       │
+       └─ core           ← Settings, JWT helpers, bcrypt
+              │
+              ▼
+     PostgreSQL (Alembic migrations)
 
-- `domain`: enterprise rules and repository contracts. It has no FastAPI, SQLAlchemy, or framework dependency.
-- `application`: use cases such as registration, login, and agent execution orchestration.
-- `infrastructure`: database models, sessions, migrations, and SQLAlchemy repository implementations.
-- `presentation`: FastAPI routes, dependencies, and Pydantic request or response models.
-- `core`: cross-cutting settings and security helpers.
+LangGraph agent graph (inside AgentService):
 
-The frontend is a Vite React app with Tailwind CSS:
-
-- `src/api`: typed API client.
-- `src/ui`: user-facing screens and components.
-- `src/test`: test setup.
-
-PostgreSQL is the system of record. Alembic owns schema changes. JWT bearer tokens protect agent endpoints. LangGraph is isolated inside the agent application service so we can later replace the starter response node with real LLM, tool, memory, and workflow nodes without rewriting the API.
-
-## Folder Placement
-
-Backend files live under `backend/` because they deploy as the API service. Frontend files live under `frontend/` because they deploy as the browser app. Root-level Docker and environment files describe how the full system runs together.
-
-## File Guide
-
-- `.env.example`: safe template for required environment variables.
-- `.gitignore`: excludes secrets, dependency folders, build output, and caches.
-- `docker-compose.yml`: runs PostgreSQL, FastAPI, and React together.
-- `backend/Dockerfile`: builds the API container.
-- `backend/pyproject.toml`: Python package metadata, runtime dependencies, and test tooling.
-- `backend/alembic.ini`: Alembic configuration.
-- `backend/alembic/env.py`: loads app metadata and database URL for migrations.
-- `backend/alembic/versions/20260629_0001_initial_schema.py`: creates `users` and `agent_runs`.
-- `backend/app/main.py`: FastAPI application factory, CORS, and router registration.
-- `backend/app/core/config.py`: typed environment settings.
-- `backend/app/core/security.py`: password hashing, JWT creation, and JWT decoding.
-- `backend/app/domain/entities/user.py`: immutable user entity.
-- `backend/app/domain/entities/agent_run.py`: immutable agent run entity.
-- `backend/app/domain/exceptions.py`: expected business exceptions.
-- `backend/app/domain/repositories/*.py`: repository interfaces.
-- `backend/app/application/auth_service.py`: register and login use cases.
-- `backend/app/application/agent_service.py`: LangGraph-backed agent run and history use cases.
-- `backend/app/infrastructure/database/*.py`: SQLAlchemy base, models, and async sessions.
-- `backend/app/infrastructure/repositories/*.py`: PostgreSQL repository adapters.
-- `backend/app/presentation/api/dependencies.py`: dependency injection for services and current user.
-- `backend/app/presentation/api/v1/router.py`: versioned route composition.
-- `backend/app/presentation/api/v1/routes/*.py`: health, auth, and agent endpoints.
-- `backend/app/presentation/schemas/*.py`: Pydantic request and response models.
-- `backend/tests/test_auth_service.py`: unit tests for authentication rules.
-- `frontend/package.json`: frontend dependencies and scripts.
-- `frontend/Dockerfile`: builds the web container.
-- `frontend/src/api/client.ts`: typed HTTP client.
-- `frontend/src/ui/App.tsx`: responsive dark-mode workspace UI.
-- `frontend/src/ui/App.test.tsx`: UI smoke test.
-- `frontend/src/styles.css`: Tailwind entrypoint and global base styles.
-
-## Function Guide
-
-- `create_app`: creates the FastAPI instance, configures CORS, and mounts API routes.
-- `get_settings`: caches validated environment settings.
-- `parse_cors_origins`: supports comma-separated or list-based CORS configuration.
-- `hash_password`: hashes passwords with bcrypt.
-- `verify_password`: checks a raw password against a stored hash.
-- `create_access_token`: creates a signed JWT access token with expiry.
-- `decode_access_token`: validates a JWT and returns its subject.
-- `AuthService.register`: normalizes email, prevents duplicates, hashes the password, creates the user, and returns a token.
-- `AuthService.login`: validates credentials and returns a token.
-- `AgentService.run`: invokes the LangGraph workflow and stores the run.
-- `AgentService.history`: returns recent runs for the current user.
-- `AgentService._build_graph`: compiles the starter LangGraph workflow.
-- `AgentService._respond`: temporary graph node that will later call model and tool nodes.
-- `get_session`: yields an async SQLAlchemy session per request.
-- `get_auth_service`: wires auth use cases to the SQLAlchemy user repository.
-- `get_agent_service`: wires agent use cases to the SQLAlchemy agent-run repository.
-- `get_current_user`: validates bearer token and loads the active user.
-- `register`, `login`, `run_agent`, `list_agent_runs`, `health`: HTTP endpoint handlers.
-- `apiClient.register`, `apiClient.login`, `apiClient.runAgent`, `apiClient.listAgentRuns`: typed browser API calls.
-- `App`: top-level UI state, theme, authentication, and workspace routing.
-- `AuthPanel`: login and registration form.
-- `Workspace`: prompt runner and recent-run list.
-
-## Run Locally
-
-1. Copy `.env.example` to `.env`.
-2. Set a strong `JWT_SECRET_KEY`.
-3. Start the stack:
-
-```bash
-docker compose up --build
+  HTTP Request → AgentService.run()
+                      │
+              StateGraph (AgentState)
+                      │
+               [respond node]
+                 AsyncGroq API
+                      │
+              Save AgentRun → Repository → DB
 ```
 
-4. Apply database migrations from the backend container:
+### Clean Architecture layers
 
-```bash
-docker compose exec backend alembic upgrade head
+| Layer | Responsibility | Allowed dependencies |
+|---|---|---|
+| `domain` | Business entities and repository contracts | Nothing (pure Python) |
+| `application` | Use cases orchestrating domain logic | `domain`, `core` |
+| `infrastructure` | SQLAlchemy, Groq, external adapters | `domain`, `core` |
+| `presentation` | FastAPI routes, Pydantic schemas, DI | `application`, `domain` |
+| `core` | Settings, JWT, password hashing | Nothing |
+
+---
+
+## Tech Stack
+
+**Backend:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 (async) · Alembic · passlib/bcrypt · python-jose · LangGraph · Groq
+
+**Frontend:** React 18 · TypeScript · Vite · Tailwind CSS · lucide-react
+
+**Database:** PostgreSQL 16 (production) · SQLite/aiosqlite (local dev)
+
+**Testing:** pytest · pytest-asyncio · httpx (ASGI transport) · Vitest · Testing Library
+
+**Infrastructure:** Docker · Docker Compose
+
+---
+
+## Project Structure
+
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── core/            # Settings, JWT, password hashing
+│   │   ├── domain/          # Entities, repository interfaces, exceptions
+│   │   ├── application/     # AuthService, AgentService (use cases)
+│   │   ├── infrastructure/  # SQLAlchemy models, repositories
+│   │   └── presentation/    # FastAPI routes, Pydantic schemas, DI
+│   ├── alembic/             # Database migrations
+│   ├── tests/               # pytest integration + unit tests
+│   └── pyproject.toml
+│
+├── frontend/
+│   └── src/
+│       ├── api/             # Typed API client (all fetch logic here)
+│       ├── ui/              # React components + tests
+│       └── styles.css       # Global styles
+│
+├── docker-compose.yml
+└── .env.example
 ```
 
-5. Open the UI at `http://localhost:5173`.
-6. Open API docs at `http://localhost:8000/docs`.
+---
 
-## Test It
+## API Endpoints
 
-Backend:
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | — | Liveness check |
+| `POST` | `/api/v1/auth/register` | — | Create account, return JWT |
+| `POST` | `/api/v1/auth/login` | — | Authenticate, return JWT |
+| `POST` | `/api/v1/agents/runs` | ✅ Bearer | Execute agent, save run |
+| `GET` | `/api/v1/agents/runs` | ✅ Bearer | List own runs (paginated) |
+| `GET` | `/api/v1/agents/runs/{id}` | ✅ Bearer | Get single run |
+| `DELETE` | `/api/v1/agents/runs/{id}` | ✅ Bearer | Delete own run |
+
+Interactive API docs: `http://localhost:8000/docs`
+
+---
+
+## Local Development (without Docker)
+
+### Prerequisites
+- Python 3.12+
+- Node.js 22+
+- A [Groq API key](https://console.groq.com) (free tier available)
+
+### Backend
 
 ```bash
 cd backend
+
+# Copy and edit the environment file
+cp ../.env.example .env
+# Set GROQ_API_KEY and a strong JWT_SECRET_KEY
+
+# Install dependencies
 pip install -e ".[dev]"
-pytest
+
+# Start the API server (uses SQLite locally — no PostgreSQL needed)
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Frontend:
+API available at `http://localhost:8000` · Swagger docs at `/docs`
+
+### Frontend
 
 ```bash
 cd frontend
 npm install
+npm run dev
+```
+
+UI available at `http://localhost:5173`
+
+---
+
+## Docker
+
+Start the full stack (PostgreSQL + backend + frontend):
+
+```bash
+# Copy environment file and set real values
+cp .env.example .env
+
+docker compose up --build
+```
+
+- UI: `http://localhost:5173`
+- API: `http://localhost:8000`
+- Docs: `http://localhost:8000/docs`
+
+Migrations run automatically at backend startup (`alembic upgrade head`).
+
+---
+
+## Testing
+
+### Backend (28 tests)
+
+```bash
+cd backend
+pip install -e ".[dev]"
+pytest -v
+```
+
+Covers: registration, duplicate detection, email normalisation, login, invalid credentials, uniform error messages, JWT rejection, unauthenticated access, agent run creation, model params, prompt validation, run listing, pagination, user isolation, cross-user delete prevention, and health check.
+
+### Frontend (5 tests)
+
+```bash
+cd frontend
 npm test
+```
+
+### Production build validation
+
+```bash
+cd frontend
 npm run build
 ```
 
-End-to-end manual check:
-
-1. Register with an email and a password of at least 12 characters.
-2. Submit an agent prompt.
-3. Confirm the new run appears in recent runs.
-4. Refresh, log in again, and confirm history loads.
+---
 
 ## Security Notes
 
-- Never use the example JWT secret in production.
-- Keep `.env` out of source control.
-- Use HTTPS in production so bearer tokens are not exposed on the network.
-- Use short-lived access tokens and add refresh-token rotation before broad release.
-- Run migrations explicitly instead of relying on application startup schema creation.
-- Keep CORS origins narrow.
+- Never use the example JWT secret (`change-this-to-...`) in production.
+- Generate a secure secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+- Keep `.env` out of source control (already in `.gitignore`).
+- CORS origins are narrow by default — do not set `CORS_ORIGINS=*` with credentials.
+- Auth errors return identical messages for unknown users and wrong passwords (prevents user enumeration).
+- `hashed_password` is never included in any API response.
+- User isolation is enforced at the repository layer — `user_id` is always part of the WHERE clause.
 
-## Common Mistakes
+---
 
-- Forgetting to run Alembic migrations before using auth endpoints.
-- Setting `CORS_ORIGINS=*` with credentials enabled.
-- Storing JWT tokens in long-lived browser storage without a refresh-token strategy.
-- Letting SQLAlchemy models leak into route responses instead of mapping to schemas.
-- Putting LangGraph logic directly in route handlers.
-- Adding database calls inside React components instead of using the API client boundary.
+## Future Improvements
 
-## Suggested Improvements
+The following are genuinely not yet implemented:
 
-- Add refresh tokens with rotation and token revocation.
-- Add Alembic migration checks in CI.
-- Add rate limiting for auth and agent-run endpoints.
-- Add structured logging, request IDs, and OpenTelemetry tracing.
-- Replace the starter LangGraph response node with model, memory, retrieval, and tool nodes.
-- Add workspace, project, and role-based authorization models.
-- Add Playwright browser tests once the UI workflow stabilizes.
-
+- **Streaming responses** — real-time token streaming via Server-Sent Events
+- **Refresh token rotation** — short-lived access tokens with revocable refresh tokens
+- **RAG / retrieval** — vector store integration for document-grounded answers
+- **Tool calling** — LangGraph tool nodes (web search, code execution, etc.)
+- **Agent memory** — persistent conversation context between runs
+- **Rate limiting** — per-user request throttling on auth and agent endpoints
+- **Structured logging** — request IDs, correlation tracing, OpenTelemetry
+- **Role-based access control** — workspace/project/member models
+- **Playwright end-to-end tests** — full browser automation against the UI
+- **CI/CD pipeline** — GitHub Actions with lint, test, build, and Docker push

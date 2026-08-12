@@ -1,149 +1,115 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bot, LogOut, Moon, Sun, Zap, Clock, User, Sparkles, Send,
-  ChevronRight, Settings, Trash2, Copy, Check, Search,
-  ChevronDown, Sliders
+  Bot, Home, MessageSquare, FolderOpen, Star, Brain, Cpu, Settings,
+  HelpCircle, LogOut, Send, Plus, Zap, Search, Code2, Sun, Moon,
+  User, Copy, Check, Trash2, ChevronRight, Sparkles, Clock, Activity,
+  ArrowUpRight, Play, FileText
 } from "lucide-react";
 import { AgentRun, AuthResponse, apiClient } from "../api/client";
 
+/* ── types ── */
 type Theme = "light" | "dark";
 type AuthMode = "login" | "register";
+type Page = "home" | "chat";
 
-const PRESETS = [
-  { name: "💻 Code Gen", text: "Write a clean, efficient TypeScript implementation of a binary search tree with insert, delete, and search. Explain time and space complexity." },
-  { name: "✍️ Copywriter", text: "Write an engaging product announcement email for a new developer tool called 'NeuralDesk' — an AI Agent Workspace with live tracking and premium UI." },
-  { name: "🔍 Code Review", text: "Analyze this code for security vulnerabilities, bugs, and performance improvements:\n\n```python\ndef get_user_data(user_id):\n    query = f\"SELECT * FROM users WHERE id = '{user_id}'\"\n```" },
-  { name: "💡 Tech Explainer", text: "Explain the differences between REST, GraphQL, and gRPC. Include a comparison table on when to use each." },
-];
-
+/* ── constants ── */
 const MODELS = [
-  { id: "llama-3.3-70b-versatile", label: "LLaMA 3.3 70b" },
-  { id: "llama-3.1-8b-instant",    label: "LLaMA 3.1 8b" },
-  { id: "gemma2-9b-it",            label: "Gemma 2 9b" },
+  { id: "llama-3.3-70b-versatile", short: "LLaMA 3.3 · 70B", badge: "Pro" },
+  { id: "llama-3.1-8b-instant",    short: "LLaMA 3.1 · 8B",  badge: "Fast" },
+  { id: "gemma2-9b-it",            short: "Gemma 2 · 9B",     badge: "Compact" },
 ];
 
+const QUICK_ACTIONS = [
+  { icon: <Code2 size={16}/>,    label: "Generate Code",  color: "#6366f1", text: "Write a clean, well-documented TypeScript function that implements debounce with proper typing." },
+  { icon: <Search size={16}/>,   label: "Start Research", color: "#06b6d4", text: "Research and summarize the latest developments in large language model efficiency improvements in 2025-2026." },
+  { icon: <Zap size={16}/>,      label: "Debug Code",     color: "#f59e0b", text: "Analyze and fix this code snippet for bugs, performance issues, and best practices: " },
+  { icon: <FileText size={16}/>, label: "Draft Document", color: "#10b981", text: "Draft a professional technical specification document for a REST API with authentication, rate limiting, and versioning." },
+];
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+/* ══════════════════════════════════════════════════
+   ROOT
+══════════════════════════════════════════════════ */
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("theme") as Theme) || "dark");
-  const [auth, setAuth]   = useState<AuthResponse | null>(null);
-  const [runs, setRuns]   = useState<AgentRun[]>([]);
+  const [auth, setAuth] = useState<AuthResponse | null>(null);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  useEffect(() => {
-    if (!auth) return;
-    apiClient.listAgentRuns(auth.access_token).then(setRuns).catch(() => setRuns([]));
-  }, [auth]);
-
   return (
-    <div className={`app-shell ${theme}`}>
-      <div className="bg-orb bg-orb-1" />
-      <div className="bg-orb bg-orb-2" />
-      <div className="bg-orb bg-orb-3" />
-
-      <nav className="nav-bar">
-        <div className="nav-inner">
-          <div className="nav-brand">
-            <div className="brand-icon"><Bot size={20} /></div>
-            <div>
-              <h1 className="brand-name">NeuralDesk</h1>
-              <p className="brand-tagline">{auth ? `${auth.user.email.split("@")[0]}'s workspace` : "AI-powered operations"}</p>
-            </div>
-          </div>
-          <div className="nav-actions">
-            <button className="icon-btn" type="button" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} aria-label="Toggle theme">
-              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
-            {auth && (
-              <button className="icon-btn" type="button" onClick={() => { setAuth(null); setRuns([]); }} aria-label="Sign out">
-                <LogOut size={17} />
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      <main className="main-content">
-        {auth
-          ? <Workspace token={auth.access_token} runs={runs} onRunCreated={r => setRuns(prev => [r, ...prev])} onRunDeleted={id => setRuns(prev => prev.filter(r => r.id !== id))} />
-          : <AuthPanel onAuthenticated={setAuth} />
-        }
-      </main>
+    <div className="nd-root" data-theme={theme}>
+      {auth
+        ? <MainApp auth={auth} theme={theme} toggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")} onSignOut={() => setAuth(null)} />
+        : <AuthPage theme={theme} toggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")} onAuthenticated={setAuth} />}
     </div>
   );
 }
 
-/* ─────────────────────────── Auth ─────────────────────────── */
-
-function AuthPanel({ onAuthenticated }: { onAuthenticated: (a: AuthResponse) => void }) {
+/* ══════════════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════════════ */
+function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggleTheme(): void; onAuthenticated(a: AuthResponse): void }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true); setError(null);
+  async function submit(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(null);
     try {
-      const result = mode === "login"
-        ? await apiClient.login(email, password)
-        : await apiClient.register(email, password);
-      onAuthenticated(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed.");
-    } finally { setBusy(false); }
+      const r = mode === "login" ? await apiClient.login(email, password) : await apiClient.register(email, password);
+      onAuthenticated(r);
+    } catch (err) { setError(err instanceof Error ? err.message : "Authentication failed."); }
+    finally { setBusy(false); }
   }
 
   return (
-    <div className="auth-wrapper">
-      <div className="auth-hero">
-        <div className="auth-hero-content">
-          <div className="hero-badge"><Sparkles size={13} /><span>Powered by AI</span></div>
-          <h2 className="hero-title">Your intelligent command&nbsp;center</h2>
-          <p className="hero-sub">Run AI agents, pick models, tune parameters and track everything — all in one place.</p>
-          <div className="hero-features">
-            {[
-              { icon: <Zap size={15} />, text: "Instant LLaMA & Gemma inference" },
-              { icon: <Sliders size={15} />, text: "Fine-tune temperature & max tokens" },
-              { icon: <Clock size={15} />, text: "Full run history with search & delete" },
-            ].map((f, i) => (
-              <div key={i} className="hero-feature">{f.icon}<span>{f.text}</span></div>
-            ))}
-          </div>
+    <div className="auth-shell">
+      <div className="auth-orb auth-orb-1"/><div className="auth-orb auth-orb-2"/><div className="auth-orb auth-orb-3"/>
+      <nav className="auth-nav">
+        <div className="brand"><Bot size={22}/><span>NeuralDesk</span></div>
+        <button className="icon-btn" onClick={toggleTheme}>{theme==="dark"?<Sun size={16}/>:<Moon size={16}/>}</button>
+      </nav>
+      <div className="auth-body">
+        <div className="auth-hero">
+          <div className="hero-pill"><Sparkles size={12}/><span>AI Agent Workspace</span></div>
+          <h1>Think it. Type it.<br/><span className="g-text">Done.</span></h1>
+          <p>Run AI agents, pick models, and track every run in one stunning workspace.</p>
         </div>
-      </div>
-
-      <div className="auth-form-panel">
         <div className="auth-card">
-          <div className="auth-card-head">
-            <div className="auth-avatar"><User size={22} /></div>
-            <h3 className="auth-title">{mode === "login" ? "Welcome back" : "Create account"}</h3>
-            <p className="auth-sub">{mode === "login" ? "Sign in to your workspace" : "Register a local agent profile"}</p>
-          </div>
-          <div className="tab-bar">
-            {(["login", "register"] as AuthMode[]).map(item => (
-              <button key={item} className={`tab-btn ${mode === item ? "tab-btn--active" : ""}`} type="button" onClick={() => { setMode(item); setError(null); }}>
-                {item === "login" ? "Sign In" : "Register"}
+          <div className="auth-tabs">
+            {(["login","register"] as AuthMode[]).map(m=>(
+              <button key={m} className={`a-tab${mode===m?" a-tab-on":""}`} onClick={()=>{setMode(m);setError(null);}}>
+                {m==="login"?"Sign in":"Register"}
               </button>
             ))}
           </div>
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <div className="field">
-              <label className="field-label" htmlFor="auth-email">Email address</label>
-              <input id="auth-email" className="field-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="auth-password">Password</label>
-              <input id="auth-password" className="field-input" type="password" placeholder={mode === "register" ? "Min 12 characters" : "Your password"} value={password} onChange={e => setPassword(e.target.value)} required minLength={mode === "register" ? 12 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} />
-            </div>
-            {error && <div className="error-banner"><span>{error}</span></div>}
-            <button className="submit-btn" type="submit" disabled={busy}>
-              {busy ? <span className="spinner" /> : null}
-              <span>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</span>
-              {!busy && <ChevronRight size={16} className="btn-arrow" />}
+          <form onSubmit={submit}>
+            <div className="nd-field"><label>Email</label><input className="nd-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email"/></div>
+            <div className="nd-field"><label>Password</label><input className="nd-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 12 characters":"••••••••"} required minLength={mode==="register"?12:1} autoComplete={mode==="login"?"current-password":"new-password"}/></div>
+            {error && <p className="auth-err">{error}</p>}
+            <button className="auth-submit" type="submit" disabled={busy}>
+              {busy?<span className="spin"/>:null}{busy?"Please wait…":mode==="login"?"Sign in →":"Create account →"}
             </button>
           </form>
         </div>
@@ -152,296 +118,429 @@ function AuthPanel({ onAuthenticated }: { onAuthenticated: (a: AuthResponse) => 
   );
 }
 
-/* ─────────────────────────── Workspace ─────────────────────────── */
+/* ══════════════════════════════════════════════════
+   MAIN APP SHELL
+══════════════════════════════════════════════════ */
+function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; theme: Theme; toggleTheme(): void; onSignOut(): void }) {
+  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [page, setPage] = useState<Page>("home");
+  const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
+  const [navActive, setNavActive] = useState<string>("Home");
+  const [model, setModel] = useState(MODELS[0].id);
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(2048);
 
-function Workspace({ token, runs, onRunCreated, onRunDeleted }: {
-  token: string;
-  runs: AgentRun[];
-  onRunCreated: (r: AgentRun) => void;
-  onRunDeleted: (id: string) => void;
-}) {
-  const [prompt, setPrompt]             = useState("");
-  const [busy, setBusy]                 = useState(false);
-  const [error, setError]               = useState<string | null>(null);
-  const [latestRun, setLatestRun]       = useState<AgentRun | null>(null);
+  useEffect(() => { apiClient.listAgentRuns(auth.access_token).then(setRuns).catch(()=>{}); }, [auth]);
 
-  // Settings
-  const [showSettings, setShowSettings] = useState(false);
-  const [model, setModel]               = useState("llama-3.3-70b-versatile");
-  const [temperature, setTemperature]   = useState(0.7);
-  const [maxTokens, setMaxTokens]       = useState(2048);
+  const username = auth.user.email.split("@")[0];
+  const displayName = username.charAt(0).toUpperCase() + username.slice(1);
 
-  // History sidebar
-  const [search, setSearch]             = useState("");
-  const responseRef = useRef<HTMLDivElement>(null);
+  function openChat(run?: AgentRun) {
+    setActiveRun(run ?? null);
+    setPage("chat");
+    setNavActive("Chats");
+  }
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return runs;
-    const q = search.toLowerCase();
-    return runs.filter(r => r.prompt.toLowerCase().includes(q) || r.response.toLowerCase().includes(q));
-  }, [runs, search]);
-
-  async function handleRun(e: FormEvent) {
-    e.preventDefault();
-    if (!prompt.trim()) return;
-    setBusy(true); setError(null); setLatestRun(null);
-    try {
-      const run = await apiClient.runAgent(prompt, token, model, temperature, maxTokens);
-      setLatestRun(run);
-      onRunCreated(run);
-      // don't clear the prompt so the user can see what they asked
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Agent run failed.");
-    } finally {
-      setBusy(false);
-      setTimeout(() => responseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-    }
+  function addRun(run: AgentRun) {
+    setRuns(prev => [run, ...prev]);
+    setActiveRun(run);
   }
 
   return (
-    <div className="workspace workspace--chat">
-      {/* ── Main chat column ── */}
-      <div className="chat-column">
+    <div className="app-shell">
+      {/* ── Sidebar ── */}
+      <aside className="sidebar">
+        <div className="sb-top">
+          <div className="sb-brand"><Bot size={20}/><span>NeuralDesk</span></div>
+          <nav className="sb-nav">
+            {[
+              { label:"Home",      icon:<Home size={16}/>        },
+              { label:"Chats",     icon:<MessageSquare size={16}/>},
+              { label:"Agents",    icon:<Cpu size={16}/>         },
+              { label:"Files",     icon:<FolderOpen size={16}/>  },
+              { label:"Favorites", icon:<Star size={16}/>        },
+              { label:"Knowledge", icon:<Brain size={16}/>       },
+              { label:"Settings",  icon:<Settings size={16}/>    },
+            ].map(item=>(
+              <button key={item.label}
+                className={`sb-item${navActive===item.label?" sb-item-on":""}`}
+                onClick={()=>{
+                  setNavActive(item.label);
+                  if(item.label==="Home"){setPage("home");setActiveRun(null);}
+                  else if(item.label==="Chats"){setPage("chat");}
+                }}>
+                {item.icon}<span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+        <div className="sb-bottom">
+          <button className="sb-item" onClick={toggleTheme}>
+            {theme==="dark"?<Sun size={16}/>:<Moon size={16}/>}<span>{theme==="dark"?"Light mode":"Dark mode"}</span>
+          </button>
+          <button className="sb-item"><HelpCircle size={16}/><span>Help</span></button>
+          <button className="sb-item sb-logout" onClick={onSignOut}><LogOut size={16}/><span>Logout</span></button>
+        </div>
+      </aside>
 
-        {/* Header */}
-        <div className="panel-header">
-          <Zap size={17} className="panel-icon" />
-          <h2 className="panel-title">Agent Control Panel</h2>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              className="icon-btn"
-              type="button"
-              title="Advanced parameters"
-              style={showSettings ? { borderColor: "var(--accent)", background: "var(--accent-subtle)", color: "var(--accent)" } : {}}
-              onClick={() => setShowSettings(s => !s)}
-            >
-              <Settings size={15} />
-            </button>
-            <span className="char-badge">{prompt.length}/8000</span>
+      {/* ── Main ── */}
+      <div className="main-area">
+        {/* Top nav */}
+        <header className="topbar">
+          <nav className="top-nav">
+            {["Chat","Research","Code","Documents","Agents"].map((t,i)=>(
+              <button key={t} className={`top-tab${i===0&&page==="chat"?" top-tab-on":i===4&&page==="home"?" top-tab-on":""}`}
+                onClick={()=>{i===0?openChat():setPage("home");}}>
+                {t}
+              </button>
+            ))}
+          </nav>
+          <div className="user-chip">
+            <div className="u-avatar">{displayName[0]}</div>
           </div>
+        </header>
+
+        {/* Content */}
+        <div className="content-area">
+          {page === "home"
+            ? <HomePage
+                displayName={displayName}
+                runs={runs}
+                model={model}
+                onOpenChat={openChat}
+                onQuickAction={(_text: string)=>{setPage("chat");setNavActive("Chats");}}
+                auth={auth}
+                onRunCreated={addRun}
+                selectedModel={model}
+                onModelChange={setModel}
+              />
+            : <ChatPage
+                auth={auth}
+                runs={runs}
+                activeRun={activeRun}
+                model={model}
+                temperature={temperature}
+                maxTokens={maxTokens}
+                onModelChange={setModel}
+                onTemperatureChange={setTemperature}
+                onMaxTokensChange={setMaxTokens}
+                onRunCreated={addRun}
+                onSelectRun={setActiveRun}
+                onDeleteRun={(id: string)=>{setRuns(p=>p.filter(r=>r.id!==id));if(activeRun?.id===id)setActiveRun(null);}}
+              />
+          }
         </div>
 
-        {/* Preset bar */}
-        <div style={{ display: "flex", gap: 8, padding: "10px 20px 0", overflowX: "auto", flexWrap: "nowrap" }}>
-          {PRESETS.map((p, i) => (
-            <button key={i} type="button" onClick={() => setPrompt(p.text)} style={{
-              background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 20,
-              padding: "5px 14px", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)",
-              cursor: "pointer", whiteSpace: "nowrap", transition: "all .15s ease", flexShrink: 0,
-            }}
-              onMouseOver={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.background = "var(--accent-subtle)"; }}
-              onMouseOut={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.background = "var(--bg-input)"; }}
-            >{p.name}</button>
+        {/* Global bottom input — shown on home page */}
+        {page==="home" && (
+          <QuickInput
+            auth={auth} model={model}
+            onRunCreated={run=>{addRun(run);setPage("chat");setNavActive("Chats");}}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   HOME PAGE (Dashboard)
+══════════════════════════════════════════════════ */
+function HomePage({ displayName, runs, model, onOpenChat, auth, onRunCreated, selectedModel, onModelChange }: any) {
+  const recent = runs.slice(0, 3);
+  const currentModel = MODELS.find(m=>m.id===selectedModel) ?? MODELS[0];
+
+  return (
+    <div className="home-page">
+      {/* Hero card */}
+      <div className="hero-card">
+        <div className="hero-left">
+          <h1 className="hero-greeting">{getGreeting()}, {displayName}.</h1>
+          <p className="hero-sub">
+            {runs.length === 0
+              ? "Welcome to your AI workspace. Start your first conversation below."
+              : `${runs.length} agent run${runs.length!==1?"s":""} in your history.`}
+          </p>
+          {runs.length > 0 && (
+            <div className="ai-summary-box">
+              <div className="ai-summary-label"><Sparkles size={12}/><span>AI DAILY SUMMARY</span></div>
+              <p>"{runs[0].prompt.slice(0,120)}{runs[0].prompt.length>120?"…":""}"</p>
+              <p className="ai-summary-meta">Last run · {timeAgo(runs[0].created_at)} · {MODELS.find(m=>m.id===runs[0].model)?.short ?? runs[0].model ?? "Unknown model"}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Suggestions */}
+        <div className="suggestions-panel">
+          <div className="panel-label"><span>SUGGESTIONS</span></div>
+          {QUICK_ACTIONS.slice(0,2).map((a,i)=>(
+            <div key={i} className="suggestion-item">
+              <p className="sug-title">{a.label}</p>
+              <p className="sug-sub">{i===0?"Frequently used action":"Try something new"}</p>
+            </div>
           ))}
         </div>
+      </div>
 
-        {/* Settings drawer */}
-        {showSettings && (
-          <div style={{ background: "var(--bg-surface-strong)", borderBottom: "1px solid var(--border)", padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 20, animation: "slideDown .25s ease-out" }}>
-            <div className="field">
-              <label className="field-label">Model</label>
-              <select className="field-input" style={{ cursor: "pointer" }} value={model} onChange={e => setModel(e.target.value)}>
-                {MODELS.map(m => <option key={m.id} value={m.id} style={{ background: "var(--bg)" }}>{m.label}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label className="field-label">Temperature: <strong style={{ color: "var(--accent)" }}>{temperature}</strong></label>
-              <input type="range" min={0} max={1} step={0.1} value={temperature} onChange={e => setTemperature(+e.target.value)} style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}><span>Deterministic</span><span>Creative</span></div>
-            </div>
-            <div className="field">
-              <label className="field-label">Max Tokens: <strong style={{ color: "var(--accent)" }}>{maxTokens}</strong></label>
-              <input type="range" min={256} max={8192} step={256} value={maxTokens} onChange={e => setMaxTokens(+e.target.value)} style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}><span>Short</span><span>Long</span></div>
-            </div>
+      {/* Bottom row */}
+      <div className="dashboard-row">
+        {/* Quick actions */}
+        <div className="dash-card">
+          <div className="panel-label"><Zap size={12}/><span>QUICK ACTIONS</span></div>
+          <div className="qa-list">
+            {QUICK_ACTIONS.map((a,i)=>(
+              <button key={i} className="qa-item" onClick={()=>onOpenChat()}>
+                <span className="qa-icon" style={{background:`${a.color}22`,color:a.color}}>{a.icon}</span>
+                <span className="qa-label">{a.label}</span>
+                <ArrowUpRight size={13} className="qa-arrow"/>
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* Prompt form */}
-        <form className="prompt-form" onSubmit={handleRun} style={{ flex: "none" }}>
-          <div className="textarea-wrap">
-            <textarea
-              id="prompt"
-              className="prompt-textarea"
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              maxLength={8000}
-              required
-              placeholder={"Describe what you want the AI agent to do…\n\ne.g. Summarize the latest trends in machine learning, or help me write a Python script that…"}
-            />
+        {/* Recent work */}
+        <div className="dash-card dash-card--wide">
+          <div className="panel-label-row">
+            <div className="panel-label"><Clock size={12}/><span>RECENT WORK</span></div>
+            {runs.length>0 && <button className="view-all-btn" onClick={()=>onOpenChat()}>View All</button>}
           </div>
-          {error && <div className="error-banner"><span>{error}</span></div>}
-          <div className="prompt-footer">
-            <span className="hint-tag" style={{ border: "1px solid var(--border)", fontSize: 11 }}>
-              {MODELS.find(m => m.id === model)?.label ?? model}
-            </span>
-            <button className="run-btn" type="submit" disabled={busy || !prompt.trim()}>
-              {busy ? <><span className="spinner spinner--sm" /><span>Running…</span></> : <><Send size={15} /><span>Run Agent</span></>}
-            </button>
-          </div>
-        </form>
+          {recent.length === 0 ? (
+            <div className="rw-empty"><Bot size={28}/><p>No runs yet</p></div>
+          ) : (
+            <div className="rw-grid">
+              {recent.map((run:AgentRun,i:number)=>(
+                <button key={run.id} className="rw-card" onClick={()=>onOpenChat(run)}>
+                  <div className="rw-card-head">
+                    <div className="rw-icon" style={{background:["#6366f122","#06b6d422","#f59e0b22"][i%3],color:["#6366f1","#06b6d4","#f59e0b"][i%3]}}>
+                      <Activity size={16}/>
+                    </div>
+                    <span className="rw-badge">Done</span>
+                  </div>
+                  <p className="rw-title">{run.prompt.slice(0,40)}{run.prompt.length>40?"…":""}</p>
+                  <p className="rw-sub">{run.response.slice(0,60)}{run.response.length>60?"…":""}</p>
+                  <div className="rw-bar"><div className="rw-bar-fill" style={{width:`${Math.min(100,run.response.length/20)}%`}}/></div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* ── Response area — shows directly below the prompt ── */}
-        {(busy || latestRun) && (
-          <div ref={responseRef} className="response-area" style={{ animation: "fadeIn .3s ease-in-out" }}>
-            {busy ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "24px 20px", color: "var(--text-muted)" }}>
-                <span className="spinner" />
-                <span style={{ fontSize: 14 }}>Agent is thinking…</span>
+        {/* System */}
+        <div className="dash-card">
+          <div className="panel-label"><Cpu size={12}/><span>SYSTEM</span></div>
+          <div className="sys-rows">
+            <div className="sys-row">
+              <span className="sys-key">Model</span>
+              <span className="sys-val sys-val--accent">{currentModel.short}</span>
+            </div>
+            <div className="sys-row">
+              <span className="sys-key">Status</span>
+              <span className="sys-online"><span className="dot-green"/>Online &amp; Connected</span>
+            </div>
+            <div className="sys-row">
+              <span className="sys-key">Runs Total</span>
+              <span className="sys-val">{runs.length}</span>
+            </div>
+            <div className="sys-row-stack">
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span className="sys-key">History Usage</span>
+                <span className="sys-val">{Math.min(100,runs.length*5)}%</span>
               </div>
-            ) : latestRun ? (
-              <ResponseCard run={latestRun} />
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      {/* ── History sidebar ── */}
-      <div className="history-panel">
-        <div className="panel-header" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Clock size={17} className="panel-icon" />
-            <h2 className="panel-title">Run History</h2>
-            {filtered.length > 0 && <span className="count-badge">{filtered.length}</span>}
-          </div>
-          <div style={{ position: "relative" }}>
-            <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-            <input type="text" placeholder="Search runs…" className="field-input" value={search} onChange={e => setSearch(e.target.value)}
-              style={{ height: 32, paddingLeft: 30, fontSize: 12, borderRadius: 8, width: "100%", background: "var(--bg-input)" }} />
-          </div>
-        </div>
-
-        <div className="run-list">
-          {filtered.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon"><Bot size={28} /></div>
-              <p className="empty-title">{runs.length === 0 ? "No runs yet" : "No matches"}</p>
-              <p className="empty-sub">{runs.length === 0 ? "Your agent history appears here" : "Try a different search"}</p>
+              <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.min(100,runs.length*5)}%`}}/></div>
             </div>
-          ) : filtered.map(run => (
-            <HistoryCard key={run.id} run={run} token={token} onDeleted={() => onRunDeleted(run.id)} />
-          ))}
+            <div className="sys-model-picker">
+              <p className="sys-key" style={{marginBottom:6}}>Switch Model</p>
+              {MODELS.map(m=>(
+                <button key={m.id} className={`model-pick-btn${selectedModel===m.id?" model-pick-btn-on":""}`}
+                  onClick={()=>onModelChange(m.id)}>
+                  <span>{m.short}</span><span className="mp-badge">{m.badge}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────── Inline response card (below prompt) ─────────── */
-function ResponseCard({ run }: { run: AgentRun }) {
+/* ══════════════════════════════════════════════════
+   QUICK INPUT (home bottom bar)
+══════════════════════════════════════════════════ */
+function QuickInput({ auth, model, onRunCreated }: { auth: AuthResponse; model: string; onRunCreated(r: AgentRun): void }) {
+  const [val, setVal] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function send() {
+    if (!val.trim() || busy) return;
+    setBusy(true);
+    try {
+      const run = await apiClient.runAgent(val, auth.access_token, model, 0.7, 2048);
+      onRunCreated(run); setVal("");
+    } catch { /* handled in chat page */ }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="quick-input-shell">
+      <div className="quick-input-box">
+        <button className="qi-plus"><Plus size={16}/></button>
+        <input
+          className="qi-input"
+          value={val}
+          onChange={e=>setVal(e.target.value)}
+          placeholder="Message NeuralDesk or type '/' for commands…"
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+        />
+        <button className={`qi-send${val.trim()&&!busy?" qi-send-on":""}`} onClick={send} disabled={!val.trim()||busy}>
+          {busy?<span className="spin spin-sm"/>:<Send size={15}/>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   CHAT PAGE
+══════════════════════════════════════════════════ */
+function ChatPage({ auth, runs, activeRun, model, temperature, maxTokens, onModelChange, onTemperatureChange, onMaxTokensChange, onRunCreated, onSelectRun, onDeleteRun }: any) {
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[activeRun,busy]);
+
+  async function send(e?: FormEvent) {
+    e?.preventDefault();
+    if (!prompt.trim()||busy) return;
+    const p = prompt; setPrompt(""); setBusy(true); setError(null);
+    try {
+      const run = await apiClient.runAgent(p, auth.access_token, model, temperature, maxTokens);
+      onRunCreated(run);
+    } catch(err) { setError(err instanceof Error ? err.message : "Failed."); setPrompt(p); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="chat-page">
+      {/* History sidebar */}
+      <div className="chat-sidebar">
+        <div className="cs-header">
+          <MessageSquare size={14}/><span>Conversations</span>
+        </div>
+        {runs.length === 0 && <p className="cs-empty">No runs yet</p>}
+        {runs.map((run: AgentRun)=>(
+          <div key={run.id} className={`cs-item${activeRun?.id===run.id?" cs-item-on":""}`} onClick={()=>onSelectRun(run)}>
+            <p className="cs-item-text">{run.prompt.slice(0,50)}{run.prompt.length>50?"…":""}</p>
+            <div className="cs-item-meta">
+              <span>{timeAgo(run.created_at)}</span>
+              <button className="cs-del" onClick={e=>{e.stopPropagation();apiClient.deleteAgentRun(run.id,auth.access_token).then(()=>onDeleteRun(run.id)).catch(()=>alert("Delete failed"));}}><Trash2 size={11}/></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chat area */}
+      <div className="chat-area">
+        <div className="chat-messages">
+          {!activeRun && !busy && (
+            <div className="chat-welcome">
+              <div className="cw-icon"><Bot size={32}/></div>
+              <h2>How can I help you?</h2>
+              <p>Type a message or choose a quick action to get started.</p>
+              <div className="cw-presets">
+                {QUICK_ACTIONS.map((a,i)=>(
+                  <button key={i} className="cw-preset" onClick={()=>setPrompt(a.text)}>
+                    <span style={{color:a.color}}>{a.icon}</span><span>{a.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(activeRun||busy) && (
+            <>
+              <div className="msg-user">
+                <div className="msg-bubble-user">{activeRun?.prompt ?? prompt}</div>
+                <div className="msg-av-user"><User size={14}/></div>
+              </div>
+              <div className="msg-ai">
+                <div className="msg-av-ai"><Bot size={15}/></div>
+                <div className="msg-bubble-ai">
+                  {busy && !activeRun
+                    ? <div className="think-dots"><span/><span/><span/></div>
+                    : activeRun
+                      ? <AiMsg run={activeRun}/>
+                      : null}
+                </div>
+              </div>
+            </>
+          )}
+          {error && <p className="chat-error">{error}</p>}
+          <div ref={bottomRef}/>
+        </div>
+
+        {/* Input */}
+        <div className="chat-input-wrap">
+          {showSettings && (
+            <div className="settings-tray">
+              <div className="st-field">
+                <label className="st-label">Model</label>
+                <select className="st-select" value={model} onChange={e=>onModelChange(e.target.value)}>
+                  {MODELS.map(m=><option key={m.id} value={m.id}>{m.short}</option>)}
+                </select>
+              </div>
+              <div className="st-field">
+                <label className="st-label">Temperature <b style={{color:"#6366f1"}}>{temperature}</b></label>
+                <input type="range" min={0} max={1} step={0.1} value={temperature} onChange={e=>onTemperatureChange(+e.target.value)} className="st-range"/>
+              </div>
+              <div className="st-field">
+                <label className="st-label">Max Tokens <b style={{color:"#6366f1"}}>{maxTokens}</b></label>
+                <input type="range" min={256} max={8192} step={256} value={maxTokens} onChange={e=>onMaxTokensChange(+e.target.value)} className="st-range"/>
+              </div>
+            </div>
+          )}
+          <form className="ci-form" onSubmit={send}>
+            <div className="ci-box">
+              <button type="button" className="ci-plus" onClick={()=>setShowSettings(s=>!s)} title="Settings" style={showSettings?{color:"#6366f1"}:{}}>
+                <Plus size={16}/>
+              </button>
+              <textarea
+                className="ci-area"
+                value={prompt}
+                onChange={e=>setPrompt(e.target.value)}
+                placeholder="Message NeuralDesk or type '/' for commands…"
+                rows={1}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+                onInput={e=>{const t=e.currentTarget;t.style.height="auto";t.style.height=Math.min(t.scrollHeight,180)+"px";}}
+              />
+              <button type="submit" className={`ci-send${prompt.trim()&&!busy?" ci-send-on":""}`} disabled={!prompt.trim()||busy}>
+                {busy?<span className="spin spin-sm"/>:<Send size={15}/>}
+              </button>
+            </div>
+          </form>
+          <p className="ci-hint">Enter to send · Shift+Enter for new line</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   AI MESSAGE BUBBLE
+══════════════════════════════════════════════════ */
+function AiMsg({ run }: { run: AgentRun }) {
   const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(run.response);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
+  async function copy() { await navigator.clipboard.writeText(run.response); setCopied(true); setTimeout(()=>setCopied(false),2000); }
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      {/* Question bubble */}
-      <div style={{
-        background: "var(--accent-subtle)", border: "1px solid var(--accent)", borderRadius: "12px 12px 4px 12px",
-        padding: "12px 16px", marginBottom: 12, fontSize: 14, color: "var(--text-primary)", fontWeight: 500,
-        lineHeight: 1.55
-      }}>
-        {run.prompt}
+    <>
+      <div className="ai-body">{run.response}</div>
+      <div className="ai-footer">
+        {run.model && <span className="ai-badge">{MODELS.find(m=>m.id===run.model)?.short ?? run.model} · T:{run.temperature}</span>}
+        <button className="copy-chip" onClick={copy}>{copied?<><Check size={11}/>Copied</>:<><Copy size={11}/>Copy</>}</button>
       </div>
-
-      {/* Answer bubble */}
-      <div style={{
-        background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "4px 12px 12px 12px",
-        padding: "16px", position: "relative"
-      }}>
-        {/* header row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent)", display: "grid", placeItems: "center" }}>
-              <Bot size={14} color="#fff" />
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.5px" }}>AI Response</span>
-            {run.model && <span style={{ fontSize: 10, color: "var(--text-muted)", background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: 10, padding: "2px 8px" }}>{run.model.split("-")[0]} • T:{run.temperature}</span>}
-          </div>
-          <button type="button" onClick={copy} style={{
-            display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600,
-            color: copied ? "var(--success)" : "var(--text-secondary)", border: "1px solid var(--border)",
-            background: "var(--bg-surface-strong)", borderRadius: 6, padding: "3px 10px", cursor: "pointer", transition: "all .15s",
-          }}>
-            {copied ? <Check size={11} /> : <Copy size={11} />}
-            {copied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-
-        {/* response body */}
-        <div style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-          {run.response}
-        </div>
-
-        {/* footer meta */}
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
-          <Clock size={11} />
-          <span>{new Date(run.created_at).toLocaleString()}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────── Compact history card (right sidebar) ─────────── */
-function HistoryCard({ run, token, onDeleted }: { run: AgentRun; token: string; onDeleted: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied]     = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  async function copy(e: React.MouseEvent) {
-    e.stopPropagation();
-    await navigator.clipboard.writeText(run.response);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function del(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!window.confirm("Delete this run?")) return;
-    setDeleting(true);
-    try { await apiClient.deleteAgentRun(run.id, token); onDeleted(); }
-    catch { alert("Failed to delete."); setDeleting(false); }
-  }
-
-  return (
-    <article className="run-card" onClick={() => setExpanded(x => !x)} style={{ opacity: deleting ? 0.4 : 1, pointerEvents: deleting ? "none" : "auto" }}>
-      <div className="run-card-head">
-        <div className="run-dot" />
-        <p className="run-prompt">{run.prompt}</p>
-        <div style={{ display: "flex", gap: 4, marginLeft: 6 }}>
-          <button type="button" onClick={del} title="Delete" style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4, borderRadius: 4, display: "grid", placeItems: "center", transition: "all .15s" }}
-            onMouseOver={e => { e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.background = "var(--danger-bg)"; }}
-            onMouseOut={e => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "transparent"; }}>
-            <Trash2 size={12} />
-          </button>
-          <ChevronDown size={14} className="run-chevron" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .2s ease", color: "var(--text-muted)" }} />
-        </div>
-      </div>
-
-      {expanded && (
-        <div className="run-response" style={{ animation: "fadeIn .2s ease-in-out" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, textTransform: "uppercase" }}>Response</span>
-            <button type="button" onClick={copy} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: copied ? "var(--success)" : "var(--text-secondary)", border: "1px solid var(--border)", background: "var(--bg-surface)", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>
-              {copied ? <Check size={11} /> : <Copy size={11} />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <p style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{run.response}</p>
-        </div>
-      )}
-
-      <div className="run-meta" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <Clock size={10} />
-          <span>{new Date(run.created_at).toLocaleString()}</span>
-        </div>
-        {run.model && <span style={{ fontSize: 10 }}>{run.model.split("-")[0]} • T:{run.temperature}</span>}
-      </div>
-    </article>
+    </>
   );
 }

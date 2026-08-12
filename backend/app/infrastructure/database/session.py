@@ -1,4 +1,5 @@
-from sqlalchemy import text
+from collections.abc import AsyncIterator
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -21,24 +22,19 @@ AsyncSessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def init_db() -> None:
-    """Create all tables if they don't exist (used for SQLite in development)."""
+    """Create all tables when running against SQLite (development only).
+
+    In production with PostgreSQL, Alembic migrations are the source of truth.
+    This is intentionally a no-op for PostgreSQL.
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return
+
     from app.infrastructure.database.base import Base  # noqa: PLC0415
-    import app.infrastructure.database.models  # noqa: F401, PLC0415 – ensure models are registered
+    import app.infrastructure.database.models  # noqa: F401, PLC0415
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    # Dynamically check and add missing columns to agent_runs for SQLite
-    async with engine.begin() as conn:
-        for stmt in [
-            "ALTER TABLE agent_runs ADD COLUMN model VARCHAR(50) DEFAULT 'llama-3.3-70b-versatile'",
-            "ALTER TABLE agent_runs ADD COLUMN temperature FLOAT DEFAULT 0.7",
-            "ALTER TABLE agent_runs ADD COLUMN max_tokens INTEGER DEFAULT 2048"
-        ]:
-            try:
-                await conn.execute(text(stmt))
-            except Exception:
-                pass
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

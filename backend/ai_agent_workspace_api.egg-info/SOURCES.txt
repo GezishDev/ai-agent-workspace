@@ -41,4 +41,6 @@ app/presentation/schemas/__init__.py
 app/presentation/schemas/agent.py
 app/presentation/schemas/auth.py
 app/presentation/schemas/health.py
+tests/test_agent_api.py
+tests/test_auth_api.py
 tests/test_auth_service.py
