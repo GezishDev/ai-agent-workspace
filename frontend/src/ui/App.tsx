@@ -3,14 +3,15 @@ import {
   Bot, Home, MessageSquare, FolderOpen, Star, Brain, Cpu, Settings,
   HelpCircle, LogOut, Send, Plus, Zap, Search, Code2, Sun, Moon,
   User, Copy, Check, Trash2, ChevronRight, Sparkles, Clock, Activity,
-  ArrowUpRight, Play, FileText
+  ArrowUpRight, Play, FileText, Database, ShieldCheck, Key, Terminal,
+  ExternalLink, FileCode, CheckCircle2, Sliders, Layers
 } from "lucide-react";
 import { AgentRun, AuthResponse, apiClient } from "../api/client";
 
 /* ── types ── */
 type Theme = "light" | "dark";
 type AuthMode = "login" | "register";
-type Page = "home" | "chat";
+type Page = "home" | "chat" | "agents" | "files" | "favorites" | "knowledge" | "settings" | "help";
 
 /* ── constants ── */
 const MODELS = [
@@ -65,7 +66,7 @@ export function App() {
 }
 
 /* ══════════════════════════════════════════════════
-   AUTH
+   AUTH PAGE
 ══════════════════════════════════════════════════ */
 function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggleTheme(): void; onAuthenticated(a: AuthResponse): void }) {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -125,26 +126,45 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [page, setPage] = useState<Page>("home");
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
-  const [navActive, setNavActive] = useState<string>("Home");
   const [model, setModel] = useState(MODELS[0].id);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("fav_runs") || "[]"); } catch { return []; }
+  });
 
   useEffect(() => { apiClient.listAgentRuns(auth.access_token).then(setRuns).catch(()=>{}); }, [auth]);
+
+  useEffect(() => {
+    localStorage.setItem("fav_runs", JSON.stringify(favorites));
+  }, [favorites]);
 
   const username = auth.user.email.split("@")[0];
   const displayName = username.charAt(0).toUpperCase() + username.slice(1);
 
-  function openChat(run?: AgentRun) {
+  function openChat(run?: AgentRun, promptText?: string) {
     setActiveRun(run ?? null);
     setPage("chat");
-    setNavActive("Chats");
   }
 
   function addRun(run: AgentRun) {
     setRuns(prev => [run, ...prev]);
     setActiveRun(run);
   }
+
+  function toggleFavorite(runId: string) {
+    setFavorites(prev => prev.includes(runId) ? prev.filter(id => id !== runId) : [...prev, runId]);
+  }
+
+  const sidebarNav: { label: string; page: Page; icon: React.ReactNode }[] = [
+    { label: "Home",      page: "home",      icon: <Home size={16}/> },
+    { label: "Chats",     page: "chat",      icon: <MessageSquare size={16}/> },
+    { label: "Agents",    page: "agents",    icon: <Cpu size={16}/> },
+    { label: "Files",     page: "files",     icon: <FolderOpen size={16}/> },
+    { label: "Favorites", page: "favorites", icon: <Star size={16}/> },
+    { label: "Knowledge", page: "knowledge", icon: <Brain size={16}/> },
+    { label: "Settings",  page: "settings",  icon: <Settings size={16}/> },
+  ];
 
   return (
     <div className="app-shell">
@@ -153,21 +173,12 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
         <div className="sb-top">
           <div className="sb-brand"><Bot size={20}/><span>NeuralDesk</span></div>
           <nav className="sb-nav">
-            {[
-              { label:"Home",      icon:<Home size={16}/>        },
-              { label:"Chats",     icon:<MessageSquare size={16}/>},
-              { label:"Agents",    icon:<Cpu size={16}/>         },
-              { label:"Files",     icon:<FolderOpen size={16}/>  },
-              { label:"Favorites", icon:<Star size={16}/>        },
-              { label:"Knowledge", icon:<Brain size={16}/>       },
-              { label:"Settings",  icon:<Settings size={16}/>    },
-            ].map(item=>(
+            {sidebarNav.map(item=>(
               <button key={item.label}
-                className={`sb-item${navActive===item.label?" sb-item-on":""}`}
+                className={`sb-item${page===item.page?" sb-item-on":""}`}
                 onClick={()=>{
-                  setNavActive(item.label);
-                  if(item.label==="Home"){setPage("home");setActiveRun(null);}
-                  else if(item.label==="Chats"){setPage("chat");}
+                  setPage(item.page);
+                  if (item.page === "home") setActiveRun(null);
                 }}>
                 {item.icon}<span>{item.label}</span>
               </button>
@@ -175,10 +186,12 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
           </nav>
         </div>
         <div className="sb-bottom">
+          <button className={`sb-item${page==="help"?" sb-item-on":""}`} onClick={() => setPage("help")}>
+            <HelpCircle size={16}/><span>Help</span>
+          </button>
           <button className="sb-item" onClick={toggleTheme}>
             {theme==="dark"?<Sun size={16}/>:<Moon size={16}/>}<span>{theme==="dark"?"Light mode":"Dark mode"}</span>
           </button>
-          <button className="sb-item"><HelpCircle size={16}/><span>Help</span></button>
           <button className="sb-item sb-logout" onClick={onSignOut}><LogOut size={16}/><span>Logout</span></button>
         </div>
       </aside>
@@ -188,10 +201,17 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
         {/* Top nav */}
         <header className="topbar">
           <nav className="top-nav">
-            {["Chat","Research","Code","Documents","Agents"].map((t,i)=>(
-              <button key={t} className={`top-tab${i===0&&page==="chat"?" top-tab-on":i===4&&page==="home"?" top-tab-on":""}`}
-                onClick={()=>{i===0?openChat():setPage("home");}}>
-                {t}
+            {[
+              { label: "Chat", page: "chat" as Page },
+              { label: "Research", page: "knowledge" as Page },
+              { label: "Code", page: "files" as Page },
+              { label: "Documents", page: "files" as Page },
+              { label: "Agents", page: "agents" as Page },
+            ].map(t => (
+              <button key={t.label}
+                className={`top-tab${page===t.page?" top-tab-on":""}`}
+                onClick={()=>setPage(t.page)}>
+                {t.label}
               </button>
             ))}
           </nav>
@@ -202,40 +222,81 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
 
         {/* Content */}
         <div className="content-area">
-          {page === "home"
-            ? <HomePage
-                displayName={displayName}
-                runs={runs}
-                model={model}
-                onOpenChat={openChat}
-                onQuickAction={(_text: string)=>{setPage("chat");setNavActive("Chats");}}
-                auth={auth}
-                onRunCreated={addRun}
-                selectedModel={model}
-                onModelChange={setModel}
-              />
-            : <ChatPage
-                auth={auth}
-                runs={runs}
-                activeRun={activeRun}
-                model={model}
-                temperature={temperature}
-                maxTokens={maxTokens}
-                onModelChange={setModel}
-                onTemperatureChange={setTemperature}
-                onMaxTokensChange={setMaxTokens}
-                onRunCreated={addRun}
-                onSelectRun={setActiveRun}
-                onDeleteRun={(id: string)=>{setRuns(p=>p.filter(r=>r.id!==id));if(activeRun?.id===id)setActiveRun(null);}}
-              />
-          }
+          {page === "home" && (
+            <HomePage
+              displayName={displayName}
+              runs={runs}
+              onOpenChat={openChat}
+              selectedModel={model}
+              onModelChange={setModel}
+            />
+          )}
+
+          {page === "chat" && (
+            <ChatPage
+              auth={auth}
+              runs={runs}
+              activeRun={activeRun}
+              model={model}
+              temperature={temperature}
+              maxTokens={maxTokens}
+              onModelChange={setModel}
+              onTemperatureChange={setTemperature}
+              onMaxTokensChange={setMaxTokens}
+              onRunCreated={addRun}
+              onSelectRun={setActiveRun}
+              onDeleteRun={(id: string)=>{setRuns(p=>p.filter(r=>r.id!==id));if(activeRun?.id===id)setActiveRun(null);}}
+            />
+          )}
+
+          {page === "agents" && (
+            <AgentsPage onLaunchAgent={(agentPrompt, agentModel) => {
+              if (agentModel) setModel(agentModel);
+              openChat(undefined, agentPrompt);
+            }}/>
+          )}
+
+          {page === "files" && (
+            <FilesPage runs={runs}/>
+          )}
+
+          {page === "favorites" && (
+            <FavoritesPage
+              runs={runs}
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
+              onOpenRun={openChat}
+            />
+          )}
+
+          {page === "knowledge" && (
+            <KnowledgePage />
+          )}
+
+          {page === "settings" && (
+            <SettingsPage
+              theme={theme}
+              toggleTheme={toggleTheme}
+              auth={auth}
+              model={model}
+              onModelChange={setModel}
+              temperature={temperature}
+              onTemperatureChange={setTemperature}
+              maxTokens={maxTokens}
+              onMaxTokensChange={setMaxTokens}
+            />
+          )}
+
+          {page === "help" && (
+            <HelpPage />
+          )}
         </div>
 
         {/* Global bottom input — shown on home page */}
         {page==="home" && (
           <QuickInput
             auth={auth} model={model}
-            onRunCreated={run=>{addRun(run);setPage("chat");setNavActive("Chats");}}
+            onRunCreated={run=>{addRun(run);setPage("chat");}}
           />
         )}
       </div>
@@ -246,7 +307,13 @@ function MainApp({ auth, theme, toggleTheme, onSignOut }: { auth: AuthResponse; 
 /* ══════════════════════════════════════════════════
    HOME PAGE (Dashboard)
 ══════════════════════════════════════════════════ */
-function HomePage({ displayName, runs, model, onOpenChat, auth, onRunCreated, selectedModel, onModelChange }: any) {
+function HomePage({ displayName, runs, onOpenChat, selectedModel, onModelChange }: {
+  displayName: string;
+  runs: AgentRun[];
+  onOpenChat: (run?: AgentRun) => void;
+  selectedModel: string;
+  onModelChange: (m: string) => void;
+}) {
   const recent = runs.slice(0, 3);
   const currentModel = MODELS.find(m=>m.id===selectedModel) ?? MODELS[0];
 
@@ -274,7 +341,7 @@ function HomePage({ displayName, runs, model, onOpenChat, auth, onRunCreated, se
         <div className="suggestions-panel">
           <div className="panel-label"><span>SUGGESTIONS</span></div>
           {QUICK_ACTIONS.slice(0,2).map((a,i)=>(
-            <div key={i} className="suggestion-item">
+            <div key={i} className="suggestion-item" onClick={() => onOpenChat()}>
               <p className="sug-title">{a.label}</p>
               <p className="sug-sub">{i===0?"Frequently used action":"Try something new"}</p>
             </div>
@@ -365,7 +432,7 @@ function HomePage({ displayName, runs, model, onOpenChat, auth, onRunCreated, se
 }
 
 /* ══════════════════════════════════════════════════
-   QUICK INPUT (home bottom bar)
+   QUICK INPUT
 ══════════════════════════════════════════════════ */
 function QuickInput({ auth, model, onRunCreated }: { auth: AuthResponse; model: string; onRunCreated(r: AgentRun): void }) {
   const [val, setVal] = useState("");
@@ -403,7 +470,20 @@ function QuickInput({ auth, model, onRunCreated }: { auth: AuthResponse; model: 
 /* ══════════════════════════════════════════════════
    CHAT PAGE
 ══════════════════════════════════════════════════ */
-function ChatPage({ auth, runs, activeRun, model, temperature, maxTokens, onModelChange, onTemperatureChange, onMaxTokensChange, onRunCreated, onSelectRun, onDeleteRun }: any) {
+function ChatPage({ auth, runs, activeRun, model, temperature, maxTokens, onModelChange, onTemperatureChange, onMaxTokensChange, onRunCreated, onSelectRun, onDeleteRun }: {
+  auth: AuthResponse;
+  runs: AgentRun[];
+  activeRun: AgentRun | null;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  onModelChange: (m: string) => void;
+  onTemperatureChange: (t: number) => void;
+  onMaxTokensChange: (mt: number) => void;
+  onRunCreated: (r: AgentRun) => void;
+  onSelectRun: (r: AgentRun | null) => void;
+  onDeleteRun: (id: string) => void;
+}) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string|null>(null);
@@ -542,5 +622,338 @@ function AiMsg({ run }: { run: AgentRun }) {
         <button className="copy-chip" onClick={copy}>{copied?<><Check size={11}/>Copied</>:<><Copy size={11}/>Copy</>}</button>
       </div>
     </>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   AGENTS PAGE
+══════════════════════════════════════════════════ */
+function AgentsPage({ onLaunchAgent }: { onLaunchAgent: (promptText: string, modelId?: string) => void }) {
+  const agentTemplates = [
+    {
+      title: "Code Architect Agent",
+      badge: "Production Ready",
+      desc: "Specialized in Python FastAPI, React TypeScript, and Clean Architecture refactoring.",
+      icon: <Code2 size={20} color="#6366f1"/>,
+      model: "llama-3.3-70b-versatile",
+      prompt: "Refactor this architecture to follow strict Clean Architecture with domain, application, and infrastructure layers."
+    },
+    {
+      title: "Deep Research Specialist",
+      badge: "Analytical",
+      desc: "Performs synthesis of technical documentation, scientific papers, and system trade-offs.",
+      icon: <Search size={20} color="#06b6d4"/>,
+      model: "llama-3.3-70b-versatile",
+      prompt: "Perform a deep-dive research analysis comparing PostgreSQL vs SQLite for AI Agent persistence."
+    },
+    {
+      title: "QA & Debugger Agent",
+      badge: "High Precision",
+      desc: "Analyzes stack traces, pytest failures, and runtime exceptions with exact root cause diagnosis.",
+      icon: <Zap size={20} color="#f59e0b"/>,
+      model: "llama-3.1-8b-instant",
+      prompt: "Analyze the following error traceback, identify the exact line where the exception occurs, and provide the fix."
+    },
+    {
+      title: "Technical Spec Writer",
+      badge: "Documentation",
+      desc: "Generates OpenAPI specifications, database schema diagrams, and README documentation.",
+      icon: <FileText size={20} color="#10b981"/>,
+      model: "gemma2-9b-it",
+      prompt: "Write a comprehensive OpenAPI 3.0 technical specification for a multi-tenant AI Agent API."
+    }
+  ];
+
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><Cpu size={22} color="var(--ac)"/> Agent Marketplace &amp; Roster</h2>
+          <p>Deploy specialized AI agents tailored for specific software engineering workflows.</p>
+        </div>
+        <span className="cb-badge"><CheckCircle2 size={12}/> 4 Active Agents</span>
+      </div>
+
+      <div className="cards-grid">
+        {agentTemplates.map((agent, i) => (
+          <div key={i} className="card-box">
+            <div className="cb-icon-head">
+              <div className="cb-icon" style={{background:"var(--bg3)"}}>{agent.icon}</div>
+              <span className="cb-badge">{agent.badge}</span>
+            </div>
+            <h3 className="cb-title">{agent.title}</h3>
+            <p className="cb-desc">{agent.desc}</p>
+            <div style={{marginTop:"auto", paddingTop:12, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+              <span style={{fontSize:11, color:"var(--t3)"}}>{MODELS.find(m=>m.id===agent.model)?.short}</span>
+              <button className="primary-btn" onClick={() => onLaunchAgent(agent.prompt, agent.model)}>
+                Launch Agent <Play size={12}/>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   FILES PAGE
+══════════════════════════════════════════════════ */
+function FilesPage({ runs }: { runs: AgentRun[] }) {
+  const [search, setSearch] = useState("");
+
+  const filteredRuns = useMemo(() => {
+    if (!search.trim()) return runs;
+    return runs.filter(r => r.prompt.toLowerCase().includes(search.toLowerCase()) || r.response.toLowerCase().includes(search.toLowerCase()));
+  }, [runs, search]);
+
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><FolderOpen size={22} color="var(--ac)"/> Workspace Files &amp; Outputs</h2>
+          <p>Inspect code snippets, generated specs, and outputs produced by agent runs.</p>
+        </div>
+        <input
+          className="search-bar-input"
+          placeholder="Filter workspace files..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {filteredRuns.length === 0 ? (
+        <div className="rw-empty"><FileCode size={32}/><p>No workspace files matching filter</p></div>
+      ) : (
+        <div className="files-list">
+          {filteredRuns.map((run, i) => (
+            <div key={run.id} className="file-row">
+              <div className="file-left">
+                <div className="file-icon"><FileText size={18}/></div>
+                <div className="file-info">
+                  <h4>Output_{run.id.slice(0, 8)}.txt</h4>
+                  <p>Prompt: "{run.prompt.slice(0, 60)}…" · {timeAgo(run.created_at)}</p>
+                </div>
+              </div>
+              <div style={{display:"flex", gap:8}}>
+                <button className="secondary-btn" onClick={() => navigator.clipboard.writeText(run.response)}>
+                  <Copy size={12}/> Copy Output
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   FAVORITES PAGE
+══════════════════════════════════════════════════ */
+function FavoritesPage({ runs, favorites, onToggleFavorite, onOpenRun }: {
+  runs: AgentRun[];
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+  onOpenRun: (run: AgentRun) => void;
+}) {
+  const favRuns = runs.filter(r => favorites.includes(r.id));
+
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><Star size={22} color="#f59e0b"/> Starred &amp; Favorite Runs</h2>
+          <p>Quick access to bookmarked prompts and high-value agent responses.</p>
+        </div>
+        <span className="cb-badge">{favRuns.length} Saved Items</span>
+      </div>
+
+      {favRuns.length === 0 ? (
+        <div className="rw-empty">
+          <Star size={32} color="var(--t3)"/>
+          <p>No favorites starred yet. Star any conversation run to save it here.</p>
+        </div>
+      ) : (
+        <div className="cards-grid">
+          {favRuns.map((run) => (
+            <div key={run.id} className="card-box">
+              <div className="cb-icon-head">
+                <div className="cb-icon" style={{background:"rgba(245,158,11,0.12)", color:"#f59e0b"}}><Star size={18}/></div>
+                <button className="icon-btn" onClick={() => onToggleFavorite(run.id)} style={{color:"#f59e0b"}}>
+                  <Star size={14} fill="#f59e0b"/>
+                </button>
+              </div>
+              <h3 className="cb-title">{run.prompt.slice(0, 50)}</h3>
+              <p className="cb-desc">{run.response.slice(0, 100)}…</p>
+              <div style={{marginTop:"auto", paddingTop:12}}>
+                <button className="primary-btn" onClick={() => onOpenRun(run)}>
+                  Open Chat <ChevronRight size={12}/>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   KNOWLEDGE PAGE
+══════════════════════════════════════════════════ */
+function KnowledgePage() {
+  const [docs, setDocs] = useState([
+    { name: "FastAPI_Clean_Architecture_Spec.pdf", chunks: 42, size: "1.2 MB", status: "Indexed" },
+    { name: "Database_Schema_v2_PostgreSQL.json", chunks: 18, size: "480 KB", status: "Indexed" },
+    { name: "LangGraph_StateGraph_Reference.md", chunks: 29, size: "210 KB", status: "Indexed" },
+  ]);
+
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><Brain size={22} color="#06b6d4"/> Workspace Knowledge &amp; RAG</h2>
+          <p>Manage documents, vector stores, and contextual memory used by agents.</p>
+        </div>
+        <button className="primary-btn" onClick={() => {
+          setDocs(prev => [...prev, { name: `Context_Doc_${prev.length+1}.md`, chunks: 15, size: "150 KB", status: "Indexed" }]);
+        }}>
+          <Plus size={14}/> Add Context Document
+        </button>
+      </div>
+
+      <div className="cards-grid" style={{gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))"}}>
+        <div className="card-box" style={{background:"var(--bg3)"}}>
+          <span style={{fontSize:12, color:"var(--t2)"}}>Vector DB Status</span>
+          <h3 style={{fontSize:20, color:"var(--ok)"}}>Connected &amp; Ready</h3>
+          <p style={{fontSize:12, color:"var(--t3)"}}>89 Total Chunks Embedded</p>
+        </div>
+        <div className="card-box" style={{background:"var(--bg3)"}}>
+          <span style={{fontSize:12, color:"var(--t2)"}}>Embedding Model</span>
+          <h3 style={{fontSize:18, color:"var(--ac2)"}}>text-embedding-3-small</h3>
+          <p style={{fontSize:12, color:"var(--t3)"}}>1536 Dimension vectors</p>
+        </div>
+      </div>
+
+      <div className="files-list">
+        {docs.map((doc, i) => (
+          <div key={i} className="file-row">
+            <div className="file-left">
+              <div className="file-icon" style={{color:"#06b6d4"}}><Database size={18}/></div>
+              <div className="file-info">
+                <h4>{doc.name}</h4>
+                <p>{doc.chunks} chunks embedded · {doc.size}</p>
+              </div>
+            </div>
+            <span className="cb-badge" style={{background:"rgba(34,197,94,0.12)", color:"var(--ok)"}}>{doc.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   SETTINGS PAGE
+══════════════════════════════════════════════════ */
+function SettingsPage({ theme, toggleTheme, auth, model, onModelChange, temperature, onTemperatureChange, maxTokens, onMaxTokensChange }: {
+  theme: Theme;
+  toggleTheme: () => void;
+  auth: AuthResponse;
+  model: string;
+  onModelChange: (m: string) => void;
+  temperature: number;
+  onTemperatureChange: (t: number) => void;
+  maxTokens: number;
+  onMaxTokensChange: (mt: number) => void;
+}) {
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><Settings size={22} color="var(--ac)"/> System &amp; AI Settings</h2>
+          <p>Configure model hyper-parameters, security preferences, and API keys.</p>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="sg-header"><Sliders size={16}/> Default Model Configuration</div>
+        <div className="st-field">
+          <label className="st-label">Default LLM Model</label>
+          <select className="st-select" value={model} onChange={e => onModelChange(e.target.value)}>
+            {MODELS.map(m => <option key={m.id} value={m.id}>{m.short} ({m.badge})</option>)}
+          </select>
+        </div>
+
+        <div className="st-field">
+          <label className="st-label">Temperature: <b>{temperature}</b></label>
+          <input type="range" min={0} max={1} step={0.1} value={temperature} onChange={e=>onTemperatureChange(+e.target.value)} className="st-range"/>
+        </div>
+
+        <div className="st-field">
+          <label className="st-label">Max Token Limit: <b>{maxTokens}</b></label>
+          <input type="range" min={256} max={8192} step={256} value={maxTokens} onChange={e=>onMaxTokensChange(+e.target.value)} className="st-range"/>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="sg-header"><Key size={16}/> API Connections</div>
+        <div className="file-row">
+          <div className="file-left">
+            <div className="file-icon"><ShieldCheck size={18}/></div>
+            <div className="file-info">
+              <h4>Groq Cloud API Key</h4>
+              <p>Primary inference engine for LLaMA &amp; Gemma models</p>
+            </div>
+          </div>
+          <span className="cb-badge">Configured</span>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="sg-header"><User size={16}/> Account &amp; JWT Authentication</div>
+        <div style={{fontSize:13, color:"var(--t2)"}}>
+          <p><b>User Email:</b> {auth.user.email}</p>
+          <p><b>Account Status:</b> Active</p>
+          <p><b>Session Token:</b> Bearer JWT (30-minute expiration)</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   HELP PAGE
+══════════════════════════════════════════════════ */
+function HelpPage() {
+  return (
+    <div className="generic-page">
+      <div className="page-header">
+        <div>
+          <h2><HelpCircle size={22} color="var(--ac)"/> Help &amp; Command Reference</h2>
+          <p>User manual, keyboard shortcuts, and backend API architecture documentation.</p>
+        </div>
+      </div>
+
+      <div className="cards-grid">
+        <div className="card-box">
+          <h3 className="cb-title"><Terminal size={18}/> Keyboard Shortcuts</h3>
+          <div style={{fontSize:13, color:"var(--t2)", display:"flex", flexDirection:"column", gap:8}}>
+            <div><kbd style={{background:"var(--bg3)", padding:"2px 6px", borderRadius:4}}>Enter</kbd> Send prompt</div>
+            <div><kbd style={{background:"var(--bg3)", padding:"2px 6px", borderRadius:4}}>Shift + Enter</kbd> Insert line break</div>
+            <div><kbd style={{background:"var(--bg3)", padding:"2px 6px", borderRadius:4}}>/</kbd> Trigger prompt command menu</div>
+          </div>
+        </div>
+
+        <div className="card-box">
+          <h3 className="cb-title"><Layers size={18}/> Backend Architecture</h3>
+          <p className="cb-desc">FastAPI + LangGraph + Async SQLAlchemy with Repository Pattern &amp; User Isolation.</p>
+          <a href="http://localhost:8000/docs" target="_blank" rel="noreferrer" className="secondary-btn" style={{marginTop:"auto", alignSelf:"flex-start"}}>
+            Swagger API Docs <ExternalLink size={12}/>
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
