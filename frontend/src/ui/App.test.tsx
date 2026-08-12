@@ -10,11 +10,9 @@ describe("App", () => {
 
   it("renders the sign in tab in the auth tab bar", () => {
     render(<App />);
-    // Both the tab AND the submit button contain "Sign in" — use getAllBy
     const signInButtons = screen.getAllByRole("button", { name: /sign in/i });
     expect(signInButtons.length).toBeGreaterThanOrEqual(1);
-    // The tab should have the active class
-    expect(signInButtons.some((b) => b.className.includes("a-tab-on"))).toBe(true);
+    expect(signInButtons.some((b) => b.className.includes("a-tab-pill-on"))).toBe(true);
   });
 
   it("renders the register tab", () => {
@@ -24,7 +22,7 @@ describe("App", () => {
 
   it("renders the email input", () => {
     render(<App />);
-    expect(screen.getByPlaceholderText(/you@example\.com/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/name@company\.ai/i)).toBeInTheDocument();
   });
 
   it("renders the password input", () => {

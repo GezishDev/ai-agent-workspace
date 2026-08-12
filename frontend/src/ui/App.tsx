@@ -4,7 +4,8 @@ import {
   HelpCircle, LogOut, Send, Plus, Zap, Search, Code2, Sun, Moon,
   User, Copy, Check, Trash2, ChevronRight, Sparkles, Clock, Activity,
   ArrowUpRight, Play, FileText, Database, ShieldCheck, Key, Terminal,
-  ExternalLink, FileCode, CheckCircle2, Sliders, Layers, Eye, EyeOff
+  ExternalLink, FileCode, CheckCircle2, Sliders, Layers, Eye, EyeOff,
+  Mail, Lock, BarChart3, Users
 } from "lucide-react";
 import { AgentRun, AuthResponse, apiClient } from "../api/client";
 
@@ -66,7 +67,7 @@ export function App() {
 }
 
 /* ══════════════════════════════════════════════════
-   AUTH PAGE
+   AUTH PAGE (Command Center Design matching visual reference)
 ══════════════════════════════════════════════════ */
 function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggleTheme(): void; onAuthenticated(a: AuthResponse): void }) {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -100,36 +101,88 @@ function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggl
         <button className="icon-btn" onClick={toggleTheme}>{theme==="dark"?<Sun size={16}/>:<Moon size={16}/>}</button>
       </nav>
       <div className="auth-body">
+        {/* Left Hero */}
         <div className="auth-hero">
-          <div className="hero-pill"><Sparkles size={12}/><span>AI Agent Workspace</span></div>
-          <h1>Think it. Type it.<br/><span className="g-text">Done.</span></h1>
-          <p>Run AI agents, pick models, and track every run in one stunning workspace.</p>
+          <h1 className="g-text-cmd">Your intelligent<br/>command center</h1>
 
-          <div className="auth-features">
-            <div className="af-item"><ShieldCheck size={16}/> <span>Enterprise JWT Auth &amp; Password Hashing</span></div>
-            <div className="af-item"><Cpu size={16}/> <span>LLaMA 3.3 70B &amp; Gemma Multi-Model Support</span></div>
-            <div className="af-item"><Zap size={16}/> <span>Non-blocking Async LangGraph Workflow Engine</span></div>
+          <div className="auth-features-list">
+            <div className="af-row">
+              <div className="af-icon-circle"><Bot size={20}/></div>
+              <div className="af-content">
+                <h3>Automate Complex Tasks</h3>
+                <p>Streamline workflows with precise, multi-step actions.</p>
+              </div>
+            </div>
+
+            <div className="af-row">
+              <div className="af-icon-circle"><BarChart3 size={20}/></div>
+              <div className="af-content">
+                <h3>Insights &amp; Analysis</h3>
+                <p>Unlock valuable trends and data-driven intelligence.</p>
+              </div>
+            </div>
+
+            <div className="af-row">
+              <div className="af-icon-circle"><MessageSquare size={20}/></div>
+              <div className="af-content">
+                <h3>Natural Language Interface</h3>
+                <p>Engage seamlessly with conversational AI agents.</p>
+              </div>
+            </div>
+
+            <div className="af-row">
+              <div className="af-icon-circle"><Users size={20}/></div>
+              <div className="af-content">
+                <h3>Collaboration &amp; Management</h3>
+                <p>Manage agents, projects, and permissions efficiently.</p>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="auth-card">
-          <div className="auth-tabs">
+
+        {/* Right Glass Card */}
+        <div className="auth-card-glass">
+          <div className="avatar-badge-head">
+            <div className="avatar-badge-circle"><User size={28}/></div>
+            <h2 className="auth-card-title">{mode==="login"?"Welcome back":"Create an account"}</h2>
+          </div>
+
+          <div className="auth-tabs-pill">
             {(["login","register"] as AuthMode[]).map(m=>(
-              <button key={m} className={`a-tab${mode===m?" a-tab-on":""}`} onClick={()=>{setMode(m);setError(null);setConfirmPassword("");}}>
+              <button key={m} type="button" className={`a-tab-pill${mode===m?" a-tab-pill-on":""}`} onClick={()=>{setMode(m);setError(null);setConfirmPassword("");}}>
                 {m==="login"?"Sign in":"Register"}
               </button>
             ))}
           </div>
+
           <form onSubmit={submit}>
             <div className="nd-field">
-              <label>Email</label>
-              <input className="nd-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email"/>
+              <div className="nd-field-label-row">
+                <label>Email</label>
+              </div>
+              <div className="input-icon-wrap">
+                <Mail size={16} className="input-left-icon"/>
+                <input
+                  className="nd-input-iconic"
+                  type="email"
+                  value={email}
+                  onChange={e=>setEmail(e.target.value)}
+                  placeholder="name@company.ai"
+                  required
+                  autoComplete="email"
+                />
+              </div>
             </div>
 
             <div className="nd-field">
-              <label>Password</label>
-              <div className="password-input-wrap">
+              <div className="nd-field-label-row">
+                <label>Password</label>
+                {mode === "login" && <button type="button" className="forgot-pass-link" onClick={() => alert("Password reset link will be sent to your email.")}>Forgot Password?</button>}
+              </div>
+              <div className="input-icon-wrap">
+                <Lock size={16} className="input-left-icon"/>
                 <input
-                  className="nd-input"
+                  className="nd-input-iconic"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={e=>setPassword(e.target.value)}
@@ -146,10 +199,13 @@ function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggl
 
             {mode === "register" && (
               <div className="nd-field">
-                <label>Confirm Password</label>
-                <div className="password-input-wrap">
+                <div className="nd-field-label-row">
+                  <label>Confirm Password</label>
+                </div>
+                <div className="input-icon-wrap">
+                  <Lock size={16} className="input-left-icon"/>
                   <input
-                    className="nd-input"
+                    className="nd-input-iconic"
                     type={showConfirmPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={e=>setConfirmPassword(e.target.value)}
@@ -166,8 +222,9 @@ function AuthPage({ theme, toggleTheme, onAuthenticated }: { theme: Theme; toggl
             )}
 
             {error && <p className="auth-err">{error}</p>}
-            <button className="auth-submit" type="submit" disabled={busy}>
-              {busy?<span className="spin"/>:null}{busy?"Please wait…":mode==="login"?"Sign in →":"Create account →"}
+
+            <button className="auth-submit-cmd" type="submit" disabled={busy}>
+              {busy?<span className="spin"/>:null}{busy?"Please wait…":mode==="login"?"Sign in ↗":"Create account ↗"}
             </button>
           </form>
         </div>
